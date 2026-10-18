@@ -11,3 +11,6 @@ data/
 npm-debug.log*
 .DS_Store
 Thumbs.db
+
+# npm local: este proyecto no versiona lockfile por ahora
+package-lock.json
