@@ -17,13 +17,45 @@ const locationsFor=user=>user.role==='SYSTEM_ADMIN'
   : allowedLocations(user.id);
 const supplierName=id=>id?db.prepare('SELECT name FROM suppliers WHERE id=? AND active=1').get(id)?.name||null:null;
 const manager=(req,res,next)=>req.user.role==='USER'?res.status(403).json({error:'Permiso de administrador requerido.'}):next();
+const audit=(req,action,entityType,entityId,entityName,details={})=>{
+  db.prepare('INSERT INTO audit_events(actor_user_id,actor_name,action,entity_type,entity_id,entity_name,details) VALUES (?,?,?,?,?,?,?)')
+    .run(req.user.id,req.user.full_name,action,entityType,entityId||null,entityName||null,JSON.stringify(details||{}));
+};
+const catalogName=(type,id)=>{
+  const table=catalogTables[type]; if(!table)return null;
+  return db.prepare(`SELECT name FROM ${table} WHERE id=?`).get(id)?.name||null;
+};
+const catalogUsage=(type,id)=>{
+  let movementIds=[],otherUsage=[];
+  if(type==='location'){
+    movementIds=db.prepare('SELECT id FROM movements WHERE location_id=? ORDER BY id').all(id).map(x=>Number(x.id));
+    const userCount=db.prepare('SELECT COUNT(DISTINCT user_id) n FROM user_locations WHERE location_id=?').get(id).n+
+      db.prepare('SELECT COUNT(*) n FROM users WHERE default_location_id=?').get(id).n;
+    if(userCount)otherUsage.push({kind:'USERS',count:Number(userCount)});
+  } else if(type==='expense-type'){
+    movementIds=db.prepare(`SELECT DISTINCT movement_id id FROM (
+      SELECT id movement_id FROM movements WHERE expense_type_id=?
+      UNION ALL
+      SELECT movement_id FROM settlements WHERE expense_type_id=?
+    ) ORDER BY movement_id`).all(id,id).map(x=>Number(x.id));
+    const categories=db.prepare('SELECT COUNT(*) n FROM categories WHERE expense_type_id=?').get(id).n;
+    if(categories)otherUsage.push({kind:'CATEGORIES',count:Number(categories)});
+  } else if(type==='category'){
+    movementIds=db.prepare(`SELECT DISTINCT movement_id id FROM (
+      SELECT id movement_id FROM movements WHERE category_id=?
+      UNION ALL
+      SELECT movement_id FROM settlements WHERE category_id=?
+    ) ORDER BY movement_id`).all(id,id).map(x=>Number(x.id));
+  }
+  return {movementIds,otherUsage,inUse:movementIds.length>0||otherUsage.length>0};
+};
 const ensureCompany=(user,companyId)=>{
   if(user.role==='SYSTEM_ADMIN')return;
   const found=db.prepare('SELECT 1 FROM user_locations ul JOIN locations l ON l.id=ul.location_id WHERE ul.user_id=? AND l.company_id=?').get(user.id,companyId);
   if(!found)throw new Error('No tienes acceso a esta empresa.');
 };
 
-app.get('/api/health',(_req,res)=>ok(res,{service:'control-caja-api',version:'0.2.0'}));
+app.get('/api/health',(_req,res)=>ok(res,{service:'control-caja-api',version:'0.3.0'}));
 app.post('/api/login',(req,res)=>{try{
   const x=z.object({username:z.string().trim().min(1),password:z.string().min(1)}).parse(req.body);
   const user=db.prepare('SELECT * FROM users WHERE username=? COLLATE NOCASE AND active=1').get(x.username);
@@ -61,14 +93,37 @@ app.post('/api/catalogs/:type',systemAdmin,(req,res)=>{try{
   else if(type==='location')result=db.prepare('INSERT INTO locations(company_id,name) VALUES (?,?)').run(Number(req.body.companyId),name);
   else if(type==='expense-type')result=db.prepare('INSERT INTO expense_types(name) VALUES (?)').run(name);
   else result=db.prepare('INSERT INTO categories(expense_type_id,name) VALUES (?,?)').run(req.body.expenseTypeId?Number(req.body.expenseTypeId):null,name);
-  ok(res,{id:Number(result.lastInsertRowid)});
+  const id=Number(result.lastInsertRowid);audit(req,'CREATE',type,id,name,{});
+  ok(res,{id});
 }catch(e){fail(res,e)}});
 app.put('/api/catalogs/:type/:id',systemAdmin,(req,res)=>{try{
-  const table=catalogTables[req.params.type];if(!table)throw new Error('Catálogo inválido.');
-  const id=Number(req.params.id);
-  if(req.body.name!==undefined)db.prepare(`UPDATE ${table} SET name=? WHERE id=?`).run(z.string().trim().min(1).max(80).parse(req.body.name),id);
-  if(req.body.active!==undefined)db.prepare(`UPDATE ${table} SET active=? WHERE id=?`).run(req.body.active?1:0,id);
+  const type=req.params.type,table=catalogTables[type];if(!table)throw new Error('Catálogo inválido.');
+  const id=Number(req.params.id),before=catalogName(type,id);if(!before)throw new Error('Elemento no encontrado.');
+  const changes={};
+  if(req.body.name!==undefined){const next=z.string().trim().min(1).max(80).parse(req.body.name);db.prepare(`UPDATE ${table} SET name=? WHERE id=?`).run(next,id);changes.name={from:before,to:next}}
+  if(req.body.active!==undefined){db.prepare(`UPDATE ${table} SET active=? WHERE id=?`).run(req.body.active?1:0,id);changes.active=!!req.body.active}
+  audit(req,'UPDATE',type,id,catalogName(type,id),changes);
   ok(res,{ok:true});
+}catch(e){fail(res,e)}});
+app.get('/api/catalogs/:type/:id/usage',systemAdmin,(req,res)=>{try{
+  const type=req.params.type;if(!['location','expense-type','category'].includes(type))throw new Error('Catálogo inválido.');
+  const id=Number(req.params.id),name=catalogName(type,id);if(!name)throw new Error('Elemento no encontrado.');
+  ok(res,{id,name,...catalogUsage(type,id)});
+}catch(e){fail(res,e)}});
+app.delete('/api/catalogs/:type/:id',systemAdmin,(req,res)=>{try{
+  const type=req.params.type,table=catalogTables[type];
+  if(!['location','expense-type','category'].includes(type)||!table)throw new Error('Catálogo inválido.');
+  const id=Number(req.params.id),name=catalogName(type,id);if(!name)throw new Error('Elemento no encontrado.');
+  const usage=catalogUsage(type,id);
+  if(usage.inUse)return res.status(409).json({error:'No puedes eliminar este elemento porque se está usando en otros registros.',code:'CATALOG_IN_USE',...usage});
+  db.prepare(`DELETE FROM ${table} WHERE id=?`).run(id);
+  audit(req,'DELETE',type,id,name,{});
+  ok(res,{ok:true});
+}catch(e){fail(res,e)}});
+
+app.get('/api/admin/audit',systemAdmin,(req,res)=>{try{
+  const limit=Math.min(200,Math.max(1,Number(req.query.limit||100)));
+  ok(res,db.prepare('SELECT id,actor_name,action,entity_type,entity_id,entity_name,details,created_at FROM audit_events ORDER BY id DESC LIMIT ?').all(limit));
 }catch(e){fail(res,e)}});
 
 app.post('/api/suppliers',manager,(req,res)=>{try{
