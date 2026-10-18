@@ -193,7 +193,9 @@ const movementSchema=z.object({
   amount:z.coerce.number().int().positive(),plannedDetail:z.string().trim().max(500).optional().default(''),
   invoiceMode:z.enum(['EXACT','CHANGE']).nullable().optional(),supplierId:z.coerce.number().int().positive().nullable().optional(),
   invoiceNumber:z.string().trim().max(80).optional().default(''),invoiceAmount:z.coerce.number().int().positive().nullable().optional(),
-  expenseTypeId:z.coerce.number().int().positive().nullable().optional(),categoryId:z.coerce.number().int().positive().nullable().optional()
+  expenseTypeId:z.coerce.number().int().positive().nullable().optional(),categoryId:z.coerce.number().int().positive().nullable().optional(),
+  incomeType:z.enum(['BOX','RETURN','OTHER']).nullable().optional(),relatedMovementId:z.coerce.number().int().positive().nullable().optional(),
+  boxFromDate:z.string().trim().max(10).optional().default(''),boxToDate:z.string().trim().max(10).optional().default('')
 });
 app.post('/api/movements',(req,res)=>{try{
   const x=movementSchema.parse(req.body);
