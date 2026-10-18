@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.0 — 2026-10-18
+
+- Inicio de sesión básico con usuario y clave.
+- Usuario inicial de pruebas `admin / admin`.
+- Roles separados: administrador del sistema, administrador local y usuario.
+- Gestión administrativa de usuarios, permisos de ingreso/retiro y locales autorizados.
+- Local por defecto configurable o selección obligatoria por usuario.
+- Eliminado el campo manual Responsable: cada movimiento guarda automáticamente el usuario de sesión.
+- Registro móvil simplificado: Retiro > Gasto o Factura.
+- Factura con número opcional y proveedor seleccionable desde ventana emergente.
+- Catálogo administrable de proveedores.
+- Factura con Monto exacto o Con vuelto.
+- Limpieza controlada de movimientos de prueba conservando configuraciones.
+- Se agrega DISTRIBUIDORA al catálogo de locales cuando no existe.
+- Instalación npm configurada para no generar package-lock local que bloquee futuras actualizaciones.
+
 ## 0.1.0 — 2026-10-18
 
 - Base independiente de Control Caja preparada para futura integración con Sagva System.
