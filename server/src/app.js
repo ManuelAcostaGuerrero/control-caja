@@ -329,7 +329,7 @@ app.post('/api/movements/:id/returns',(req,res)=>{try{
 }catch(e){fail(res,e)}});
 app.put('/api/settlements/:id',(req,res)=>{try{
   const id=Number(req.params.id),current=db.prepare('SELECT * FROM settlements WHERE id=?').get(id);if(!current)throw new Error('Documento no encontrado.');
-  const m=getMovement(current.movement_id);ensureCompany(req.user,m.company_id);
+  const m=getMovement(current.movement_id);ensureCompany(req.user,m.company_id);ensureMovementView(req.user,m);
   const x=z.object({documentNumber:z.string().trim().max(80).optional(),supplierId:z.coerce.number().int().positive().nullable().optional(),expenseTypeId:z.coerce.number().int().positive().nullable().optional(),categoryId:z.coerce.number().int().positive().nullable().optional(),detail:z.string().trim().max(500).optional()}).parse(req.body);
   const supplier=x.supplierId?supplierName(x.supplierId):current.supplier;
   db.prepare(`UPDATE settlements SET document_number=?,supplier=?,supplier_id=?,expense_type_id=?,category_id=?,detail=? WHERE id=?`)
