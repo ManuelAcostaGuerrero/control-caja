@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 — 2026-10-18
+
+- Catálogos de locales, tipos de gasto y categorías permiten editar, activar/desactivar y eliminar.
+- La eliminación se bloquea si el elemento está en uso.
+- El aviso inicial no expone movimientos; el administrador puede elegir “Ver movimientos” y abrir directamente cada Movimiento #ID.
+- Desde el movimiento, el administrador del sistema puede corregir local, tipo de gasto y categoría.
+- Las facturas/rendiciones permiten corregir tipo y categoría desde el detalle.
+- Auditoría administrativa de creación, modificación, activación/desactivación y eliminación de catálogos, con usuario y fecha.
+- Nueva pestaña Auditoría en Configuración.
+- Se corrigió la alineación del formulario Agregar en Categorías, tanto en computador como celular.
+- Los selectores Gasto y Factura muestran iconos diferenciados.
+- `package-lock.json` permanece ignorado localmente para no bloquear `Actualizar.bat` cuando npm lo genere.
+
 ## 0.2.0 — 2026-10-18
 
 - Inicio de sesión básico con usuario y clave.
