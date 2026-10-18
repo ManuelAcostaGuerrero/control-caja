@@ -311,7 +311,7 @@ app.put('/api/movements/:id/classification',systemAdmin,(req,res)=>{try{
 }catch(e){fail(res,e)}});
 app.post('/api/movements/:id/settlements',(req,res)=>{try{
   const id=Number(req.params.id),m=getMovement(id);if(!m||m.kind!=='WITHDRAWAL')throw new Error('Retiro no encontrado.');
-  ensureCompany(req.user,m.company_id);
+  ensureCompany(req.user,m.company_id);ensureMovementView(req.user,m);
   const x=z.object({documentType:z.enum(['FACTURA','BOLETA','OTRO']).default('FACTURA'),documentNumber:z.string().trim().max(80).optional().default(''),supplierId:z.coerce.number().int().positive().nullable().optional(),amount:z.coerce.number().int().positive(),expenseTypeId:z.coerce.number().int().positive().nullable().optional(),categoryId:z.coerce.number().int().positive().nullable().optional(),detail:z.string().trim().max(500).optional().default('')}).parse(req.body);
   if(x.amount>m.pending_amount)throw new Error('El documento supera el monto pendiente.');
   const supplier=supplierName(x.supplierId)||m.supplier_name||null;
