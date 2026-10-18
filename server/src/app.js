@@ -351,6 +351,7 @@ app.post('/api/admin/clear-test-data',systemAdmin,(req,res)=>{try{
   transaction(()=>{
     db.prepare('DELETE FROM returns').run();
     db.prepare('DELETE FROM settlements').run();
+    db.prepare('DELETE FROM movements WHERE related_movement_id IS NOT NULL').run();
     db.prepare('DELETE FROM movements').run();
     db.prepare("DELETE FROM sqlite_sequence WHERE name IN ('returns','settlements','movements')").run();
   });
