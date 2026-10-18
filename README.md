@@ -72,3 +72,7 @@ Actualizar.bat
 Abrir: `http://localhost:5174`.
 
 Puertos: pantalla `5174`, API `4100`.
+
+### Catálogos y auditoría
+
+Los administradores del sistema pueden editar, desactivar o eliminar locales, tipos de gasto y categorías. Si un elemento está en uso, la eliminación se bloquea y se puede abrir la lista de movimientos relacionados para corregirlos. Los cambios administrativos quedan registrados en la pestaña Auditoría con usuario y fecha.
