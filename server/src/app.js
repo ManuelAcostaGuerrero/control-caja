@@ -282,8 +282,9 @@ app.put('/api/settlements/:id',(req,res)=>{try{
 
 app.get('/api/dashboard',(req,res)=>{try{
   const companyId=Number(req.query.companyId);ensureCompany(req.user,companyId);
-  const all=listMovements(companyId,100),pending=all.filter(x=>x.kind==='WITHDRAWAL'&&x.status!=='COMPLETE');
-  ok(res,{balance:cashBalance(companyId),pendingCount:pending.length,pendingAmount:pending.reduce((a,x)=>a+Math.max(0,x.pending_amount),0),pending:pending.slice(0,8),recent:all.slice(0,10)});
+  const visible=visibleLocationIds(req.user);
+  const all=listMovements(companyId,100,visible),pending=all.filter(x=>x.kind==='WITHDRAWAL'&&x.status!=='COMPLETE');
+  ok(res,{balance:cashBalance(companyId,visible),pendingCount:pending.length,pendingAmount:pending.reduce((a,x)=>a+Math.max(0,x.pending_amount),0),pending:pending.slice(0,8),recent:all.slice(0,10)});
 }catch(e){fail(res,e)}});
 
 app.post('/api/admin/clear-test-data',systemAdmin,(req,res)=>{try{
