@@ -2,7 +2,7 @@
 
 Aplicación independiente, mobile-first, para controlar el dinero físico de caja fuerte y posteriormente integrarlo con Sagva System.
 
-## Versión 0.2.0
+## Versión 0.4.0
 
 El registro se simplificó para uso rápido desde celular:
 
@@ -14,7 +14,10 @@ El registro se simplificó para uso rápido desde celular:
 - Factura: número opcional, proveedor desde una lista y opción **Monto exacto** o **Con vuelto**.
 - Si falta el número de factura queda pendiente para completarlo.
 - Si la factura es con vuelto, el monto real puede informarse en el momento o después.
-- Los vueltos quedan ligados al retiro original.
+- Los vueltos quedan ligados al retiro original y pueden registrarse en varios abonos parciales.
+- En **Ingreso** existen accesos rápidos para **Caja**, **Vuelto** y **Otro**.
+- Caja admite fechas Desde/Hasta opcionales y queda identificado como motivo Caja en el historial.
+- Los montos muestran separadores de miles mientras se escriben.
 - Se pueden registrar varias facturas/boletas en una misma rendición.
 
 ## Usuarios
@@ -22,7 +25,7 @@ El registro se simplificó para uso rápido desde celular:
 Hay tres roles:
 
 - **Administrador del sistema**: administra usuarios, permisos, locales, catálogos y datos de prueba.
-- **Administrador local**: opera los locales permitidos y puede administrar proveedores.
+- **Administrador local**: ve únicamente los movimientos de sus locales permitidos. Puede registrar una operación puntual en otro local de la misma empresa sin obtener acceso a su historial y puede administrar proveedores.
 - **Usuario**: registra movimientos según los permisos que le asigne el administrador.
 
 El administrador del sistema define por usuario:
