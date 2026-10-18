@@ -1,6 +1,6 @@
 {
   "name": "control-caja",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "workspaces": ["server", "client"],
   "scripts": {
@@ -9,8 +9,6 @@
     "test": "npm run test --workspace server",
     "start:local": "powershell -ExecutionPolicy Bypass -File tools/control-local.ps1 -Accion Iniciar"
   },
-  "devDependencies": {
-    "concurrently": "^9.1.2"
-  },
+  "devDependencies": {"concurrently": "^9.1.2"},
   "engines": {"node": ">=24.0.0"}
 }
