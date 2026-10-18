@@ -54,6 +54,11 @@ const ensureCompany=(user,companyId)=>{
   const found=db.prepare('SELECT 1 FROM user_locations ul JOIN locations l ON l.id=ul.location_id WHERE ul.user_id=? AND l.company_id=?').get(user.id,companyId);
   if(!found)throw new Error('No tienes acceso a esta empresa.');
 };
+const visibleLocationIds=user=>user.role==='SYSTEM_ADMIN'?null:allowedLocations(user.id).map(x=>Number(x.id));
+const ensureMovementView=(user,movement)=>{
+  if(user.role==='SYSTEM_ADMIN')return;
+  if(!canUseLocation(user,movement.location_id))throw new Error('No tienes permiso para ver los movimientos de este local.');
+};
 
 app.get('/api/health',(_req,res)=>ok(res,{service:'control-caja-api',version:'0.4.0'}));
 app.post('/api/login',(req,res)=>{try{
