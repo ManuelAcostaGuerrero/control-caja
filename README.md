@@ -1,36 +1,74 @@
 # Control Caja
 
-Aplicación independiente, mobile-first, para controlar el dinero físico de caja fuerte por empresa y dejar cada retiro completamente rendido. Está preparada para integrarse posteriormente con Sagva System.
+Aplicación independiente, mobile-first, para controlar el dinero físico de caja fuerte y posteriormente integrarlo con Sagva System.
 
-## Versión inicial 0.1.0
+## Versión 0.2.0
 
-- Saldo físico por empresa.
-- Ingresos y retiros.
-- Destino/local por retiro (por ejemplo Gastrobar).
-- Responsable y concepto previsto.
-- Pago de factura con número opcional; si falta queda como factura pendiente.
-- Monto retirado distinto del monto real de factura y control de vuelto pendiente.
-- Varias facturas/boletas vinculadas a un mismo retiro.
-- Vuelto ligado al retiro original.
-- Estados: rendición pendiente, factura pendiente, vuelto pendiente, diferencia y completo.
-- Catálogos administrables de empresas, locales, tipos de gasto y categorías.
-- Interfaz responsive para computador y celular.
-- Historial sin borrado de movimientos en esta primera versión.
+El registro se simplificó para uso rápido desde celular:
+
+- El movimiento inicia como **Retiro**.
+- Se selecciona el **local**. Cada usuario puede tener un local por defecto o estar obligado a elegirlo.
+- No existe un campo manual de responsable: el movimiento queda ligado automáticamente al usuario de la sesión.
+- En un retiro se elige rápidamente entre **Gasto** y **Factura**.
+- Gasto: comentario obligatorio y clasificación opcional.
+- Factura: número opcional, proveedor desde una lista y opción **Monto exacto** o **Con vuelto**.
+- Si falta el número de factura queda pendiente para completarlo.
+- Si la factura es con vuelto, el monto real puede informarse en el momento o después.
+- Los vueltos quedan ligados al retiro original.
+- Se pueden registrar varias facturas/boletas en una misma rendición.
+
+## Usuarios
+
+Hay tres roles:
+
+- **Administrador del sistema**: administra usuarios, permisos, locales, catálogos y datos de prueba.
+- **Administrador local**: opera los locales permitidos y puede administrar proveedores.
+- **Usuario**: registra movimientos según los permisos que le asigne el administrador.
+
+El administrador del sistema define por usuario:
+
+- locales permitidos;
+- local por defecto o selección obligatoria;
+- permiso para retirar;
+- permiso para ingresar dinero;
+- rol y estado del usuario.
+
+Acceso inicial de pruebas:
+
+- Usuario: `admin`
+- Clave: `admin`
+
+La seguridad avanzada (biometría/huella, autenticación móvil más fuerte, etc.) se implementará posteriormente.
+
+## Proveedores
+
+Al seleccionar **Factura**, el campo Proveedor abre una ventana de búsqueda/selección. Los administradores pueden agregar proveedores al catálogo sin recargar el formulario.
+
+## Datos de prueba
+
+El administrador del sistema dispone de **Configuración > Pruebas > Limpiar datos de prueba**. La acción elimina movimientos, facturas, rendiciones y vueltos, pero conserva usuarios, proveedores, locales, tipos y categorías.
 
 ## Uso local en Windows
 
 Carpeta recomendada: `C:\Users\Admin\Documents\Codex\control-caja`.
 
-1. Clonar `https://github.com/ManuelAcostaGuerrero/control-caja.git`.
-2. Ejecutar `Preparar.bat` una sola vez.
-3. Ejecutar `Iniciar.bat`.
-4. Abrir `http://localhost:5174`.
+Primera instalación:
 
-Para actualizar se mantiene el mismo criterio de los otros proyectos: cambios integrados en `main`, respaldo previo, sin reset/stash forzado, avance `fast-forward`, pruebas y compilación. Puede usarse el flujo manual `Detener.bat` → `Actualizar.bat` → `Iniciar.bat`; si se ejecuta `Actualizar.bat` con Control Caja iniciado, el script reinicia únicamente sus procesos cuando todas las validaciones terminan correctamente.
+```bat
+cd /d C:\Users\Admin\Documents\Codex
+git clone https://github.com/ManuelAcostaGuerrero/control-caja.git
+cd control-caja
+Preparar.bat
+Iniciar.bat
+```
 
-## Puertos
+Actualizaciones posteriores:
 
-- Pantalla: `5174`
-- API: `4100`
+```bat
+cd /d C:\Users\Admin\Documents\Codex\control-caja
+Actualizar.bat
+```
 
-Se escogieron puertos propios para no interferir con otros proyectos locales.
+Abrir: `http://localhost:5174`.
+
+Puertos: pantalla `5174`, API `4100`.
