@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { db, transaction } from './db.js';
 import { runMigrations } from './migrations.js';
 import { cashBalance,getMovement,listMovements } from './service.js';
-import { allowedLocations,auth,canUseLocation,createSession,deleteSession,hashPassword,publicUser,systemAdmin,verifyPassword } from './auth.js';
+import { allowedLocations,auth,canRegisterLocation,canUseLocation,createSession,deleteSession,hashPassword,publicUser,registrationLocations,systemAdmin,verifyPassword } from './auth.js';
 
 runMigrations();
 export const app=express();
@@ -55,7 +55,7 @@ const ensureCompany=(user,companyId)=>{
   if(!found)throw new Error('No tienes acceso a esta empresa.');
 };
 
-app.get('/api/health',(_req,res)=>ok(res,{service:'control-caja-api',version:'0.3.0'}));
+app.get('/api/health',(_req,res)=>ok(res,{service:'control-caja-api',version:'0.4.0'}));
 app.post('/api/login',(req,res)=>{try{
   const x=z.object({username:z.string().trim().min(1),password:z.string().min(1)}).parse(req.body);
   const user=db.prepare('SELECT * FROM users WHERE username=? COLLATE NOCASE AND active=1').get(x.username);
@@ -78,6 +78,7 @@ app.get('/api/catalogs',(req,res)=>{try{
     : db.prepare('SELECT l.* FROM locations l JOIN user_locations ul ON ul.location_id=l.id WHERE ul.user_id=? AND l.company_id=? ORDER BY l.active DESC,l.name').all(req.user.id,companyId);
   ok(res,{
     locations,
+    registrationLocations:registrationLocations(req.user,companyId),
     expenseTypes:db.prepare('SELECT * FROM expense_types ORDER BY active DESC,name').all(),
     categories:db.prepare('SELECT c.*,et.name expense_type_name FROM categories c LEFT JOIN expense_types et ON et.id=c.expense_type_id ORDER BY c.active DESC,c.name').all(),
     suppliers:db.prepare('SELECT * FROM suppliers WHERE company_id=? ORDER BY active DESC,name').all(companyId)
