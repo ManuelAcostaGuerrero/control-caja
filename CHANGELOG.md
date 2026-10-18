@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 — 2026-10-18
+
+- Los montos se formatean con separadores de miles mientras se escriben, por ejemplo `1.250.000`.
+- Ingreso simplificado con botones rápidos: Caja, Vuelto y Otro.
+- Caja permite registrar un rango de fechas opcional (desde/hasta) y queda identificado como motivo Caja en el historial.
+- Vuelto se vincula al movimiento original y admite múltiples devoluciones parciales hasta completar la diferencia.
+- Los vueltos nuevos quedan registrados como movimientos de ingreso trazables.
+- Un administrador local puede registrar un ingreso o retiro en otro local de la misma empresa sin obtener acceso al historial de ese local.
+- Dashboard, historial y detalle de movimientos quedan limitados a los locales visibles del usuario; el dueño/administrador del sistema conserva visión global.
+- Para seleccionar un vuelto, el usuario solo ve pendientes de sus locales visibles o movimientos creados por él mismo en otro local.
+- Se mantiene la separación entre locales permitidos para consulta y locales disponibles para registrar una operación puntual.
+
 ## 0.3.0 — 2026-10-18
 
 - Catálogos de locales, tipos de gasto y categorías permiten editar, activar/desactivar y eliminar.
