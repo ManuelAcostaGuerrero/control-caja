@@ -23,7 +23,7 @@ export function publicUser(user){
   return {id:user.id,username:user.username,fullName:user.full_name,role:user.role,active:!!user.active,defaultLocationId:user.default_location_id?Number(user.default_location_id):null,requireLocationChoice:!!user.require_location_choice,canWithdraw:!!user.can_withdraw,canDeposit:!!user.can_deposit};
 }
 export function allowedLocations(userId){
-  return db.prepare(`SELECT l.* FROM user_locations ul JOIN locations l ON l.id=ul.location_id WHERE ul.user_id=? AND l.active=1 ORDER BY l.name`).all(userId);
+  return db.prepare('SELECT l.* FROM user_locations ul JOIN locations l ON l.id=ul.location_id WHERE ul.user_id=? AND l.active=1 ORDER BY l.name').all(userId);
 }
 export function auth(req,res,next){
   const header=req.headers.authorization||'';
@@ -41,4 +41,18 @@ export function systemAdmin(req,res,next){
 export function canUseLocation(user,locationId){
   if(user.role==='SYSTEM_ADMIN')return true;
   return !!db.prepare('SELECT 1 FROM user_locations WHERE user_id=? AND location_id=?').get(user.id,locationId);
+}
+export function canRegisterLocation(user,locationId){
+  if(user.role==='SYSTEM_ADMIN')return true;
+  if(user.role==='USER')return canUseLocation(user,locationId);
+  return !!db.prepare('SELECT 1 FROM locations target WHERE target.id=? AND target.active=1 AND EXISTS (SELECT 1 FROM user_locations ul JOIN locations own ON own.id=ul.location_id WHERE ul.user_id=? AND own.company_id=target.company_id)').get(locationId,user.id);
+}
+export function registrationLocations(user,companyId){
+  if(user.role==='SYSTEM_ADMIN')return db.prepare('SELECT * FROM locations WHERE company_id=? AND active=1 ORDER BY name').all(companyId);
+  if(user.role==='LOCAL_ADMIN'){
+    const hasCompany=db.prepare('SELECT 1 FROM user_locations ul JOIN locations l ON l.id=ul.location_id WHERE ul.user_id=? AND l.company_id=?').get(user.id,companyId);
+    if(!hasCompany)return [];
+    return db.prepare('SELECT * FROM locations WHERE company_id=? AND active=1 ORDER BY name').all(companyId);
+  }
+  return db.prepare('SELECT l.* FROM user_locations ul JOIN locations l ON l.id=ul.location_id WHERE ul.user_id=? AND l.company_id=? AND l.active=1 ORDER BY l.name').all(user.id,companyId);
 }
