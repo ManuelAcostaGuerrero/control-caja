@@ -322,6 +322,7 @@ app.post('/api/movements/:id/settlements',(req,res)=>{try{
 app.post('/api/movements/:id/returns',(req,res)=>{try{
   const id=Number(req.params.id),m=getMovement(id);if(!m||m.kind!=='WITHDRAWAL')throw new Error('Retiro no encontrado.');
   ensureCompany(req.user,m.company_id);ensureMovementView(req.user,m);
+  if(!req.user.can_deposit)throw new Error('Este usuario no tiene permiso para ingresar dinero.');
   const x=z.object({amount:z.coerce.number().int().positive(),note:z.string().trim().max(300).optional().default('')}).parse(req.body);
   if(x.amount>m.pending_amount)throw new Error('El vuelto supera el monto pendiente.');
   db.prepare(`INSERT INTO movements(company_id,location_id,kind,purpose,amount,planned_detail,created_by,created_by_user_id,income_type,related_movement_id)
