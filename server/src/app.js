@@ -206,7 +206,7 @@ app.post('/api/movements',(req,res)=>{try{
   const x=movementSchema.parse(req.body);
   const location=db.prepare('SELECT * FROM locations WHERE id=? AND active=1').get(x.locationId);
   if(!location||Number(location.company_id)!==x.companyId)throw new Error('Selecciona un local válido.');
-  if(!canUseLocation(req.user,x.locationId))throw new Error('Este usuario no puede registrar movimientos en ese local.');
+  if(!canRegisterLocation(req.user,x.locationId))throw new Error('Este usuario no puede registrar movimientos en ese local.');
   if(x.kind==='WITHDRAWAL'&&!req.user.can_withdraw)throw new Error('Este usuario no tiene permiso para retirar dinero.');
   if(x.kind==='INCOME'&&!req.user.can_deposit)throw new Error('Este usuario no tiene permiso para ingresar dinero.');
   if(x.kind==='WITHDRAWAL'&&x.purpose==='DIRECT_EXPENSE'&&!x.plannedDetail)throw new Error('Escribe el motivo o comentario del gasto.');
