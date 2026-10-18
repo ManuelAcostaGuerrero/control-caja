@@ -11,6 +11,8 @@ const api=async(path,options={})=>{
   return j;
 };
 const money=n=>new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(Number(n||0));
+const digitsOnly=v=>String(v??'').replace(/\D/g,'');
+const amountInput=v=>{const d=digitsOnly(v);return d.replace(/\B(?=(\d{3})+(?!\d))/g,'.')};
 const labels={PENDING_SETTLEMENT:'Pendiente de rendición',PENDING_INVOICE:'Factura pendiente',RETURN_PENDING:'Vuelto pendiente',PENDING_BALANCE:'Saldo pendiente',DIFFERENCE:'Con diferencia',COMPLETE:'Completo'};
 
 export default function App(){
@@ -43,7 +45,7 @@ export default function App(){
   if(!companyId||!catalogs)return <div className="center">Cargando…</div>;
 
   return <div className="shell">
-    <aside><div className="brand">CONTROL CAJA<small>v0.3.0</small></div><Nav view={view} setView={setView} canManage={canManage}/></aside>
+    <aside><div className="brand">CONTROL CAJA<small>v0.4.0</small></div><Nav view={view} setView={setView} canManage={canManage}/></aside>
     <main>
       <header>
         <div><b>{session.user.fullName}</b><span>{session.user.role==='SYSTEM_ADMIN'?'Administrador del sistema':session.user.role==='LOCAL_ADMIN'?'Administrador local':'Usuario'}</span></div>
@@ -57,8 +59,8 @@ export default function App(){
       {view==='new'&&<NewMovement companyId={companyId} catalogs={catalogs} session={session} canManage={canManage} after={refresh}/>}
       {view==='pending'&&<List title="Pendientes" items={pending} open={open}/>}
       {view==='history'&&<List title="Historial" items={movements} open={open}/>}
-      {view==='settings'&&canManage&&<SettingsView companyId={companyId} catalogs={catalogs} isSystem={isSystem} after={refresh}/>}
-      {view==='detail'&&selected&&<Detail movement={selected} catalogs={catalogs} canManage={canManage} after={async()=>{await refresh();setSelected(await api('/api/movements/'+selected.id))}} back={()=>setView('pending')}/>}
+      {view==='settings'&&canManage&&<SettingsView companyId={companyId} catalogs={catalogs} isSystem={isSystem} after={refresh} openMovement={open}/>}
+      {view==='detail'&&selected&&<Detail movement={selected} catalogs={catalogs} canManage={canManage} isSystem={isSystem} after={async()=>{await refresh();setSelected(await api('/api/movements/'+selected.id))}} back={()=>setView('pending')}/>}
     </main>
     <nav className="bottom"><Nav view={view} setView={setView} canManage={canManage}/></nav>
   </div>;
@@ -79,37 +81,51 @@ function MovementCards({items=[],open}){return <div className="movement-list">{i
 function List({title,items,open}){return <section><h1>{title}</h1><MovementCards items={items} open={open}/></section>}
 
 function NewMovement({companyId,catalogs,session,canManage,after}){
-  const user=session.user,allowed=catalogs.locations.filter(x=>x.active);
-  const initialLocation=(!user.requireLocationChoice&&user.defaultLocationId&&allowed.some(x=>Number(x.id)===Number(user.defaultLocationId)))?String(user.defaultLocationId):'';
-  const [kind,setKind]=useState('WITHDRAWAL'),[purpose,setPurpose]=useState('DIRECT_EXPENSE'),[providerOpen,setProviderOpen]=useState(false),[busy,setBusy]=useState(false);
-  const [form,setForm]=useState({amount:'',locationId:initialLocation,comment:'',invoiceMode:'EXACT',invoiceNumber:'',invoiceAmount:'',supplierId:'',expenseTypeId:'',categoryId:''});
+  const user=session.user,registerLocations=(catalogs.registrationLocations||catalogs.locations).filter(x=>x.active);
+  const initialLocation=(!user.requireLocationChoice&&user.defaultLocationId&&registerLocations.some(x=>Number(x.id)===Number(user.defaultLocationId)))?String(user.defaultLocationId):'';
+  const [kind,setKind]=useState('WITHDRAWAL'),[purpose,setPurpose]=useState('DIRECT_EXPENSE'),[incomeType,setIncomeType]=useState('BOX'),[providerOpen,setProviderOpen]=useState(false),[busy,setBusy]=useState(false),[returnOptions,setReturnOptions]=useState([]);
+  const [form,setForm]=useState({amount:'',locationId:initialLocation,comment:'',invoiceMode:'EXACT',invoiceNumber:'',invoiceAmount:'',supplierId:'',expenseTypeId:'',categoryId:'',relatedMovementId:'',boxFromDate:'',boxToDate:''});
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
   const supplier=catalogs.suppliers.find(x=>String(x.id)===String(form.supplierId));
+  const selectedReturn=returnOptions.find(x=>String(x.id)===String(form.relatedMovementId));
+  useEffect(()=>{if(kind==='INCOME'&&incomeType==='RETURN')api('/api/pending-returns?companyId='+companyId).then(setReturnOptions).catch(e=>alert(e.message))},[kind,incomeType,companyId]);
+  const reset=()=>{setForm({amount:'',locationId:initialLocation,comment:'',invoiceMode:'EXACT',invoiceNumber:'',invoiceAmount:'',supplierId:'',expenseTypeId:'',categoryId:'',relatedMovementId:'',boxFromDate:'',boxToDate:''});setPurpose('DIRECT_EXPENSE');setIncomeType('BOX')};
   const submit=async e=>{e.preventDefault();setBusy(true);try{
-    const body={companyId,locationId:Number(form.locationId),kind,purpose:kind==='INCOME'?'OTHER':purpose,amount:Number(form.amount),plannedDetail:form.comment,expenseTypeId:form.expenseTypeId?Number(form.expenseTypeId):null,categoryId:form.categoryId?Number(form.categoryId):null};
-    if(kind==='WITHDRAWAL'&&purpose==='INVOICE_PAYMENT')Object.assign(body,{invoiceMode:form.invoiceMode,supplierId:form.supplierId?Number(form.supplierId):null,invoiceNumber:form.invoiceNumber,invoiceAmount:form.invoiceMode==='CHANGE'&&form.invoiceAmount?Number(form.invoiceAmount):null});
-    await api('/api/movements',{method:'POST',body:JSON.stringify(body)});
-    setForm({amount:'',locationId:initialLocation,comment:'',invoiceMode:'EXACT',invoiceNumber:'',invoiceAmount:'',supplierId:'',expenseTypeId:'',categoryId:''});setPurpose('DIRECT_EXPENSE');await after();
+    if(kind==='INCOME'){
+      const body={companyId,locationId:form.locationId?Number(form.locationId):null,amount:Number(form.amount),incomeType,comment:form.comment,relatedMovementId:form.relatedMovementId?Number(form.relatedMovementId):null,boxFromDate:form.boxFromDate,boxToDate:form.boxToDate};
+      await api('/api/incomes',{method:'POST',body:JSON.stringify(body)});
+    }else{
+      const body={companyId,locationId:Number(form.locationId),kind,purpose,amount:Number(form.amount),plannedDetail:form.comment,expenseTypeId:form.expenseTypeId?Number(form.expenseTypeId):null,categoryId:form.categoryId?Number(form.categoryId):null};
+      if(purpose==='INVOICE_PAYMENT')Object.assign(body,{invoiceMode:form.invoiceMode,supplierId:form.supplierId?Number(form.supplierId):null,invoiceNumber:form.invoiceNumber,invoiceAmount:form.invoiceMode==='CHANGE'&&form.invoiceAmount?Number(form.invoiceAmount):null});
+      await api('/api/movements',{method:'POST',body:JSON.stringify(body)});
+    }
+    reset();await after();
   }catch(e){alert(e.message)}finally{setBusy(false)}};
   return <section><h1>Registrar</h1>
     <div className="seg"><button type="button" className={kind==='WITHDRAWAL'?'active':''} onClick={()=>setKind('WITHDRAWAL')}>Retiro</button>{user.canDeposit&&<button type="button" className={kind==='INCOME'?'active':''} onClick={()=>setKind('INCOME')}>Ingreso</button>}</div>
     <form className="form simple-form" onSubmit={submit}>
-      <label>Local<select required value={form.locationId} onChange={e=>set('locationId',e.target.value)}><option value="">Seleccionar local</option>{allowed.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-      <label>Monto<input inputMode="numeric" required value={form.amount} onChange={e=>set('amount',e.target.value.replace(/\D/g,''))} placeholder="$ 0"/></label>
+      {kind==='INCOME'&&<div className="quick-type full"><span>Motivo</span><button type="button" className={incomeType==='BOX'?'active':''} onClick={()=>setIncomeType('BOX')}><Store size={18}/> Caja</button><button type="button" className={incomeType==='RETURN'?'active':''} onClick={()=>setIncomeType('RETURN')}><RotateCcw size={18}/> Vuelto</button><button type="button" className={incomeType==='OTHER'?'active':''} onClick={()=>setIncomeType('OTHER')}><PlusCircle size={18}/> Otro</button></div>}
+      {!(kind==='INCOME'&&incomeType==='RETURN')&&<label>Local<select required value={form.locationId} onChange={e=>set('locationId',e.target.value)}><option value="">Seleccionar local</option>{registerLocations.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>}
+      <label>Monto<input inputMode="numeric" required value={amountInput(form.amount)} onChange={e=>set('amount',digitsOnly(e.target.value))} placeholder="$ 0"/></label>
       {kind==='WITHDRAWAL'&&<>
-        <div className="quick-type"><span>Tipo</span><button type="button" className={purpose==='DIRECT_EXPENSE'?'active':''} onClick={()=>setPurpose('DIRECT_EXPENSE')}><WalletCards size={18}/> Gasto</button><button type="button" className={purpose==='INVOICE_PAYMENT'?'active':''} onClick={()=>setPurpose('INVOICE_PAYMENT')}><ReceiptText size={18}/> Factura</button></div>
+        <div className="quick-type full"><span>Tipo</span><button type="button" className={purpose==='DIRECT_EXPENSE'?'active':''} onClick={()=>setPurpose('DIRECT_EXPENSE')}><WalletCards size={18}/> Gasto</button><button type="button" className={purpose==='INVOICE_PAYMENT'?'active':''} onClick={()=>setPurpose('INVOICE_PAYMENT')}><ReceiptText size={18}/> Factura</button></div>
         <label className="full">Comentario {purpose==='INVOICE_PAYMENT'&&<small>(opcional)</small>}<textarea required={purpose==='DIRECT_EXPENSE'} value={form.comment} onChange={e=>set('comment',e.target.value)} placeholder={purpose==='INVOICE_PAYMENT'?'Ej. mercadería para el local':'¿Para qué sale este dinero?'}/></label>
         {purpose==='INVOICE_PAYMENT'&&<div className="invoice-simple">
           <label>N.º factura <small>(opcional)</small><input value={form.invoiceNumber} onChange={e=>set('invoiceNumber',e.target.value)} placeholder="Puede quedar pendiente"/></label>
           <label>Proveedor<button type="button" className="provider-trigger" onClick={()=>setProviderOpen(true)}>{supplier?.name||'Seleccionar proveedor'}</button></label>
           <div className="quick-type full"><span>Monto factura</span><button type="button" className={form.invoiceMode==='EXACT'?'active':''} onClick={()=>set('invoiceMode','EXACT')}>Monto exacto</button><button type="button" className={form.invoiceMode==='CHANGE'?'active':''} onClick={()=>set('invoiceMode','CHANGE')}>Con vuelto</button></div>
-          {form.invoiceMode==='CHANGE'&&<label className="full">Monto de la factura <small>(si ya lo sabes)</small><input inputMode="numeric" value={form.invoiceAmount} onChange={e=>set('invoiceAmount',e.target.value.replace(/\D/g,''))} placeholder="Se puede completar después"/></label>}
+          {form.invoiceMode==='CHANGE'&&<label className="full">Monto de la factura <small>(si ya lo sabes)</small><input inputMode="numeric" value={amountInput(form.invoiceAmount)} onChange={e=>set('invoiceAmount',digitsOnly(e.target.value))} placeholder="Se puede completar después"/></label>}
           {form.invoiceMode==='CHANGE'&&form.invoiceAmount&&Number(form.amount)>=Number(form.invoiceAmount)&&<div className="calc full">Vuelto esperado <strong>{money(Number(form.amount)-Number(form.invoiceAmount))}</strong></div>}
         </div>}
         <details className="full optional"><summary>Clasificación opcional</summary><div className="optional-grid"><label>Tipo de gasto<select value={form.expenseTypeId} onChange={e=>set('expenseTypeId',e.target.value)}><option value="">Sin definir</option>{catalogs.expenseTypes.filter(x=>x.active).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label><label>Categoría<select value={form.categoryId} onChange={e=>set('categoryId',e.target.value)}><option value="">Sin definir</option>{catalogs.categories.filter(x=>x.active&&(!form.expenseTypeId||String(x.expense_type_id)===String(form.expenseTypeId))).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label></div></details>
       </>}
-      {kind==='INCOME'&&<label className="full">Comentario<textarea required value={form.comment} onChange={e=>set('comment',e.target.value)} placeholder="Origen del dinero"/></label>}
-      <button className="primary full" disabled={busy}>{busy?'Guardando…':'Registrar '+(kind==='WITHDRAWAL'?'retiro':'ingreso')}</button>
+      {kind==='INCOME'&&incomeType==='BOX'&&<>
+        <div className="date-range full"><label>Desde <small>(opcional)</small><input type="date" value={form.boxFromDate} onChange={e=>set('boxFromDate',e.target.value)}/></label><label>Hasta <small>(opcional)</small><input type="date" value={form.boxToDate} onChange={e=>set('boxToDate',e.target.value)}/></label></div>
+        <label className="full">Comentario <small>(opcional)</small><textarea value={form.comment} onChange={e=>set('comment',e.target.value)} placeholder="Ej. cajas fin de semana"/></label>
+      </>}
+      {kind==='INCOME'&&incomeType==='RETURN'&&<div className="return-panel full"><b>¿Vuelto de cuál movimiento?</b>{returnOptions.length?<div className="return-options">{returnOptions.map(x=><button type="button" key={x.id} className={String(form.relatedMovementId)===String(x.id)?'selected':''} onClick={()=>{set('relatedMovementId',String(x.id));set('locationId',String(x.locationId))}}><span>Movimiento #{x.id} · {x.locationName}</span><strong>Pendiente {money(x.pendingAmount)}</strong>{(x.invoiceNumber||x.supplierName)&&<small>{x.invoiceNumber?'Factura '+x.invoiceNumber:''}{x.invoiceNumber&&x.supplierName?' · ':''}{x.supplierName}</small>}</button>)}</div>:<div className="empty">No hay vueltos pendientes disponibles.</div>}{selectedReturn&&<div className="selected-return">Se ingresará en <b>{selectedReturn.locationName}</b>. Puedes registrar solo una parte y dejar el resto pendiente.</div>}<label>Comentario <small>(opcional)</small><input value={form.comment} onChange={e=>set('comment',e.target.value)} placeholder="Ej. primer vuelto"/></label></div>}
+      {kind==='INCOME'&&incomeType==='OTHER'&&<label className="full">Comentario<textarea required value={form.comment} onChange={e=>set('comment',e.target.value)} placeholder="Motivo del ingreso"/></label>}
+      <button className="primary full" disabled={busy||Boolean(kind==='INCOME'&&incomeType==='RETURN'&&!form.relatedMovementId)}>{busy?'Guardando…':'Registrar '+(kind==='WITHDRAWAL'?'retiro':'ingreso')}</button>
     </form>
     {providerOpen&&<ProviderModal suppliers={catalogs.suppliers} canAdd={canManage} companyId={companyId} selected={form.supplierId} onSelect={id=>{set('supplierId',id);setProviderOpen(false)}} onClose={()=>setProviderOpen(false)} after={after}/>}
   </section>;
