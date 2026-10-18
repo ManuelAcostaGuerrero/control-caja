@@ -1,5 +1,5 @@
 import { useEffect,useMemo,useState } from 'react';
-import { Home,PlusCircle,Clock3,History,Settings,ArrowDownLeft,ArrowUpRight,ReceiptText,RotateCcw,LogOut,Users,Store,Search,X } from 'lucide-react';
+import { Home,PlusCircle,Clock3,History,Settings,ArrowDownLeft,ArrowUpRight,ReceiptText,RotateCcw,LogOut,Users,Store,Search,X,WalletCards,Trash2,Pencil,Eye,ShieldCheck } from 'lucide-react';
 
 const token=()=>localStorage.getItem('controlCajaToken')||'';
 const api=async(path,options={})=>{
@@ -7,7 +7,7 @@ const api=async(path,options={})=>{
   if(token())headers.Authorization='Bearer '+token();
   const r=await fetch(path,{...options,headers});
   const j=await r.json().catch(()=>({}));
-  if(!r.ok)throw new Error(j.error||'Error');
+  if(!r.ok){const error=new Error(j.error||'Error');error.data=j;throw error}
   return j;
 };
 const money=n=>new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(Number(n||0));
@@ -43,7 +43,7 @@ export default function App(){
   if(!companyId||!catalogs)return <div className="center">Cargando…</div>;
 
   return <div className="shell">
-    <aside><div className="brand">CONTROL CAJA<small>v0.2.0</small></div><Nav view={view} setView={setView} canManage={canManage}/></aside>
+    <aside><div className="brand">CONTROL CAJA<small>v0.3.0</small></div><Nav view={view} setView={setView} canManage={canManage}/></aside>
     <main>
       <header>
         <div><b>{session.user.fullName}</b><span>{session.user.role==='SYSTEM_ADMIN'?'Administrador del sistema':session.user.role==='LOCAL_ADMIN'?'Administrador local':'Usuario'}</span></div>
@@ -97,7 +97,7 @@ function NewMovement({companyId,catalogs,session,canManage,after}){
       <label>Local<select required value={form.locationId} onChange={e=>set('locationId',e.target.value)}><option value="">Seleccionar local</option>{allowed.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
       <label>Monto<input inputMode="numeric" required value={form.amount} onChange={e=>set('amount',e.target.value.replace(/\D/g,''))} placeholder="$ 0"/></label>
       {kind==='WITHDRAWAL'&&<>
-        <div className="quick-type"><span>Tipo</span><button type="button" className={purpose==='DIRECT_EXPENSE'?'active':''} onClick={()=>setPurpose('DIRECT_EXPENSE')}>Gasto</button><button type="button" className={purpose==='INVOICE_PAYMENT'?'active':''} onClick={()=>setPurpose('INVOICE_PAYMENT')}>Factura</button></div>
+        <div className="quick-type"><span>Tipo</span><button type="button" className={purpose==='DIRECT_EXPENSE'?'active':''} onClick={()=>setPurpose('DIRECT_EXPENSE')}><WalletCards size={18}/> Gasto</button><button type="button" className={purpose==='INVOICE_PAYMENT'?'active':''} onClick={()=>setPurpose('INVOICE_PAYMENT')}><ReceiptText size={18}/> Factura</button></div>
         <label className="full">Comentario {purpose==='INVOICE_PAYMENT'&&<small>(opcional)</small>}<textarea required={purpose==='DIRECT_EXPENSE'} value={form.comment} onChange={e=>set('comment',e.target.value)} placeholder={purpose==='INVOICE_PAYMENT'?'Ej. mercadería para el local':'¿Para qué sale este dinero?'}/></label>
         {purpose==='INVOICE_PAYMENT'&&<div className="invoice-simple">
           <label>N.º factura <small>(opcional)</small><input value={form.invoiceNumber} onChange={e=>set('invoiceNumber',e.target.value)} placeholder="Puede quedar pendiente"/></label>
@@ -148,12 +148,13 @@ function Detail({movement:m,catalogs,canManage,after,back}){
   </section>;
 }
 
-function SettingsView({companyId,catalogs,isSystem,after}){
+function SettingsView({companyId,catalogs,isSystem,after,openMovement}){
   const [tab,setTab]=useState(isSystem?'users':'suppliers');
-  return <section><h1>Configuración</h1><div className="seg">{isSystem&&<button className={tab==='users'?'active':''} onClick={()=>setTab('users')}><Users size={17}/> Usuarios</button>}<button className={tab==='suppliers'?'active':''} onClick={()=>setTab('suppliers')}><Store size={17}/> Proveedores</button>{isSystem&&<button className={tab==='catalogs'?'active':''} onClick={()=>setTab('catalogs')}>Catálogos</button>}{isSystem&&<button className={tab==='tests'?'active':''} onClick={()=>setTab('tests')}>Pruebas</button>}</div>
+  return <section><h1>Configuración</h1><div className="seg">{isSystem&&<button className={tab==='users'?'active':''} onClick={()=>setTab('users')}><Users size={17}/> Usuarios</button>}<button className={tab==='suppliers'?'active':''} onClick={()=>setTab('suppliers')}><Store size={17}/> Proveedores</button>{isSystem&&<button className={tab==='catalogs'?'active':''} onClick={()=>setTab('catalogs')}>Catálogos</button>}{isSystem&&<button className={tab==='audit'?'active':''} onClick={()=>setTab('audit')}><ShieldCheck size={17}/> Auditoría</button>}{isSystem&&<button className={tab==='tests'?'active':''} onClick={()=>setTab('tests')}>Pruebas</button>}</div>
     {tab==='users'&&isSystem&&<UsersAdmin catalogs={catalogs}/>}
     {tab==='suppliers'&&<SuppliersAdmin companyId={companyId} suppliers={catalogs.suppliers} after={after}/>}
-    {tab==='catalogs'&&isSystem&&<Catalogs companyId={companyId} catalogs={catalogs} after={after}/>}
+    {tab==='catalogs'&&isSystem&&<Catalogs companyId={companyId} catalogs={catalogs} after={after} openMovement={openMovement}/>}
+    {tab==='audit'&&isSystem&&<AuditLog/>}
     {tab==='tests'&&isSystem&&<TestData after={after}/>}
   </section>;
 }
@@ -180,12 +181,26 @@ function SuppliersAdmin({companyId,suppliers,after}){
   const toggle=async s=>{try{await api('/api/suppliers/'+s.id,{method:'PUT',body:JSON.stringify({active:!s.active})});await after()}catch(e){alert(e.message)}};
   return <><form className="inline" onSubmit={add}><input required value={name} onChange={e=>setName(e.target.value)} placeholder="Nuevo proveedor"/><button>Agregar</button></form><div className="settings-list">{suppliers.map(s=><div key={s.id}><span>{s.name}</span><button onClick={()=>toggle(s)}>{s.active?'Desactivar':'Activar'}</button></div>)}</div></>;
 }
-function Catalogs({companyId,catalogs,after}){
-  const [type,setType]=useState('location'),[name,setName]=useState(''),[expenseTypeId,setExpenseTypeId]=useState('');
-  const create=async e=>{e.preventDefault();try{await api('/api/catalogs/'+type,{method:'POST',body:JSON.stringify({name,companyId,expenseTypeId:expenseTypeId?Number(expenseTypeId):null})});setName('');await after()}catch(e){alert(e.message)}};
+function Catalogs({companyId,catalogs,after,openMovement}){
+  const [type,setType]=useState('location'),[name,setName]=useState(''),[expenseTypeId,setExpenseTypeId]=useState(''),[blocked,setBlocked]=useState(null),[showMovements,setShowMovements]=useState(false);
+  const create=async e=>{e.preventDefault();try{await api('/api/catalogs/'+type,{method:'POST',body:JSON.stringify({name,companyId,expenseTypeId:expenseTypeId?Number(expenseTypeId):null})});setName('');setExpenseTypeId('');await after()}catch(e){alert(e.message)}};
   const list=type==='location'?catalogs.locations:type==='expense-type'?catalogs.expenseTypes:catalogs.categories;
   const toggle=async x=>{try{await api('/api/catalogs/'+type+'/'+x.id,{method:'PUT',body:JSON.stringify({active:!x.active})});await after()}catch(e){alert(e.message)}};
-  return <><div className="seg"><button className={type==='location'?'active':''} onClick={()=>setType('location')}>Locales</button><button className={type==='expense-type'?'active':''} onClick={()=>setType('expense-type')}>Tipos</button><button className={type==='category'?'active':''} onClick={()=>setType('category')}>Categorías</button></div><form className="inline" onSubmit={create}>{type==='category'&&<select value={expenseTypeId} onChange={e=>setExpenseTypeId(e.target.value)}><option value="">Tipo opcional</option>{catalogs.expenseTypes.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>}<input required value={name} onChange={e=>setName(e.target.value)} placeholder="Nuevo nombre"/><button>Agregar</button></form><div className="settings-list">{list.map(x=><div key={x.id}><span>{x.name}</span><button onClick={()=>toggle(x)}>{x.active?'Desactivar':'Activar'}</button></div>)}</div></>;
+  const edit=async x=>{const next=window.prompt('Nuevo nombre',x.name);if(!next||next.trim()===x.name)return;try{await api('/api/catalogs/'+type+'/'+x.id,{method:'PUT',body:JSON.stringify({name:next.trim()})});await after()}catch(e){alert(e.message)}};
+  const remove=async x=>{if(!window.confirm('¿Eliminar "'+x.name+'"? Si está siendo utilizado, el sistema no permitirá borrarlo.'))return;try{await api('/api/catalogs/'+type+'/'+x.id,{method:'DELETE'});await after()}catch(e){if(e.data?.code==='CATALOG_IN_USE'){setBlocked({...e.data,item:x});setShowMovements(false)}else alert(e.message)}};
+  const closeBlocked=()=>{setBlocked(null);setShowMovements(false)};
+  return <><div className="seg"><button className={type==='location'?'active':''} onClick={()=>setType('location')}>Locales</button><button className={type==='expense-type'?'active':''} onClick={()=>setType('expense-type')}>Tipos</button><button className={type==='category'?'active':''} onClick={()=>setType('category')}>Categorías</button></div>
+    <form className={'catalog-create '+(type==='category'?'with-type':'')} onSubmit={create}>{type==='category'&&<select value={expenseTypeId} onChange={e=>setExpenseTypeId(e.target.value)}><option value="">Tipo opcional</option>{catalogs.expenseTypes.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>}<input required value={name} onChange={e=>setName(e.target.value)} placeholder="Nuevo nombre"/><button>Agregar</button></form>
+    <div className="settings-list catalog-list">{list.map(x=><div key={x.id}><span><b>{x.name}</b>{x.expense_type_name&&<small>{x.expense_type_name}</small>}</span><span className="catalog-actions"><button title="Editar" onClick={()=>edit(x)}><Pencil size={16}/><span>Editar</span></button><button onClick={()=>toggle(x)}>{x.active?'Desactivar':'Activar'}</button><button className="danger-action" title="Eliminar" onClick={()=>remove(x)}><Trash2 size={16}/><span>Eliminar</span></button></span></div>)}</div>
+    {blocked&&<div className="modal-backdrop" onMouseDown={closeBlocked}><div className="modal usage-modal" onMouseDown={e=>e.stopPropagation()}><div className="modal-head"><b>No se puede eliminar</b><button onClick={closeBlocked}><X/></button></div><p>Este elemento se está usando en otros registros.</p>{!showMovements&&<div className="modal-actions">{blocked.movementIds?.length>0&&<button className="primary" onClick={()=>setShowMovements(true)}><Eye size={17}/> Ver movimientos</button>}<button onClick={closeBlocked}>Cerrar</button></div>}{showMovements&&<><p className="muted">Movimientos donde está asignado:</p><div className="usage-list">{blocked.movementIds.map(id=><button key={id} onClick={()=>{closeBlocked();openMovement(id)}}>Movimiento #{id}</button>)}</div>{blocked.otherUsage?.length>0&&<p className="muted">También está relacionado con otra configuración del sistema y debe corregirse antes de eliminarlo.</p>}<div className="modal-actions"><button onClick={closeBlocked}>Cerrar</button></div></>}</div></div>}
+  </>;
+}
+function AuditLog(){
+  const [rows,setRows]=useState([]),[error,setError]=useState('');
+  useEffect(()=>{api('/api/admin/audit?limit=150').then(setRows).catch(e=>setError(e.message))},[]);
+  const actionLabel=a=>({CREATE:'Creó',UPDATE:'Modificó',DELETE:'Eliminó'}[a]||a);
+  const typeLabel=t=>({location:'local','expense-type':'tipo de gasto',category:'categoría',company:'empresa'}[t]||t);
+  return <div><p className="muted">Registro de cambios administrativos en catálogos.</p>{error&&<div className="error">{error}</div>}<div className="audit-list">{rows.map(r=><div key={r.id}><span><b>{r.actor_name}</b><small>{actionLabel(r.action)} {typeLabel(r.entity_type)} · {r.entity_name||('#'+r.entity_id)}</small></span><time>{new Date(r.created_at+'Z').toLocaleString('es-CL')}</time></div>)}{!rows.length&&!error&&<div className="empty">Sin cambios registrados todavía.</div>}</div></div>;
 }
 function TestData({after}){
   const clear=async()=>{const confirmation=window.prompt('Escribe LIMPIAR PRUEBAS para borrar movimientos, facturas y vueltos de prueba. No se borrarán usuarios ni configuraciones.');if(confirmation!=='LIMPIAR PRUEBAS')return;try{await api('/api/admin/clear-test-data',{method:'POST',body:JSON.stringify({confirmation})});await after();alert('Datos de prueba eliminados.')}catch(e){alert(e.message)}};
