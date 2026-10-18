@@ -202,9 +202,9 @@ function Catalogs({companyId,catalogs,after,openMovement}){
 function AuditLog(){
   const [rows,setRows]=useState([]),[error,setError]=useState('');
   useEffect(()=>{api('/api/admin/audit?limit=150').then(setRows).catch(e=>setError(e.message))},[]);
-  const actionLabel=a=>({CREATE:'Creó',UPDATE:'Modificó',DELETE:'Eliminó'}[a]||a);
-  const typeLabel=t=>({location:'local','expense-type':'tipo de gasto',category:'categoría',company:'empresa'}[t]||t);
-  return <div><p className="muted">Registro de cambios administrativos en catálogos.</p>{error&&<div className="error">{error}</div>}<div className="audit-list">{rows.map(r=><div key={r.id}><span><b>{r.actor_name}</b><small>{actionLabel(r.action)} {typeLabel(r.entity_type)} · {r.entity_name||('#'+r.entity_id)}</small></span><time>{new Date(r.created_at+'Z').toLocaleString('es-CL')}</time></div>)}{!rows.length&&!error&&<div className="empty">Sin cambios registrados todavía.</div>}</div></div>;
+  const actionLabel=a=>({CREATE:'Creó',UPDATE:'Modificó',DELETE:'Eliminó',UPDATE_MOVEMENT:'Corrigió',UPDATE_DOCUMENT:'Modificó'}[a]||a);
+  const typeLabel=t=>({location:'local','expense-type':'tipo de gasto',category:'categoría',company:'empresa',movement:'movimiento',settlement:'documento'}[t]||t);
+  return <div><p className="muted">Registro de cambios administrativos y correcciones realizadas por usuario.</p>{error&&<div className="error">{error}</div>}<div className="audit-list">{rows.map(r=><div key={r.id}><span><b>{r.actor_name}</b><small>{actionLabel(r.action)} {typeLabel(r.entity_type)} · {r.entity_name||('#'+r.entity_id)}</small></span><time>{new Date(r.created_at+'Z').toLocaleString('es-CL')}</time></div>)}{!rows.length&&!error&&<div className="empty">Sin cambios registrados todavía.</div>}</div></div>;
 }
 function TestData({after}){
   const clear=async()=>{const confirmation=window.prompt('Escribe LIMPIAR PRUEBAS para borrar movimientos, facturas y vueltos de prueba. No se borrarán usuarios ni configuraciones.');if(confirmation!=='LIMPIAR PRUEBAS')return;try{await api('/api/admin/clear-test-data',{method:'POST',body:JSON.stringify({confirmation})});await after();alert('Datos de prueba eliminados.')}catch(e){alert(e.message)}};
