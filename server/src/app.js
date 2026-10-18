@@ -228,6 +228,21 @@ app.get('/api/movements/:id',(req,res)=>{try{
   const m=getMovement(Number(req.params.id));if(!m)return fail(res,new Error('Movimiento no encontrado.'),404);
   ensureCompany(req.user,m.company_id);ok(res,m);
 }catch(e){fail(res,e)}});
+app.put('/api/movements/:id/classification',systemAdmin,(req,res)=>{try{
+  const id=Number(req.params.id),m=getMovement(id);if(!m)throw new Error('Movimiento no encontrado.');
+  const x=z.object({
+    locationId:z.coerce.number().int().positive(),
+    expenseTypeId:z.coerce.number().int().positive().nullable().optional(),
+    categoryId:z.coerce.number().int().positive().nullable().optional()
+  }).parse(req.body);
+  const location=db.prepare('SELECT * FROM locations WHERE id=?').get(x.locationId);
+  if(!location||Number(location.company_id)!==Number(m.company_id))throw new Error('El local no pertenece a la empresa del movimiento.');
+  const before={locationId:m.location_id,expenseTypeId:m.expense_type_id,categoryId:m.category_id};
+  db.prepare('UPDATE movements SET location_id=?,expense_type_id=?,category_id=? WHERE id=?')
+    .run(x.locationId,x.expenseTypeId||null,x.categoryId||null,id);
+  audit(req,'UPDATE_MOVEMENT','movement',id,'Movimiento #'+id,{before,after:{locationId:x.locationId,expenseTypeId:x.expenseTypeId||null,categoryId:x.categoryId||null}});
+  ok(res,getMovement(id));
+}catch(e){fail(res,e)}});
 app.post('/api/movements/:id/settlements',(req,res)=>{try{
   const id=Number(req.params.id),m=getMovement(id);if(!m||m.kind!=='WITHDRAWAL')throw new Error('Retiro no encontrado.');
   ensureCompany(req.user,m.company_id);
@@ -253,6 +268,7 @@ app.put('/api/settlements/:id',(req,res)=>{try{
   const supplier=x.supplierId?supplierName(x.supplierId):current.supplier;
   db.prepare(`UPDATE settlements SET document_number=?,supplier=?,supplier_id=?,expense_type_id=?,category_id=?,detail=? WHERE id=?`)
     .run(x.documentNumber===undefined?current.document_number:(x.documentNumber||null),supplier,x.supplierId===undefined?current.supplier_id:(x.supplierId||null),x.expenseTypeId===undefined?current.expense_type_id:(x.expenseTypeId||null),x.categoryId===undefined?current.category_id:(x.categoryId||null),x.detail===undefined?current.detail:(x.detail||null),id);
+  audit(req,'UPDATE_DOCUMENT','settlement',id,(current.document_type||'Documento')+' #'+id,{movementId:current.movement_id});
   ok(res,getMovement(current.movement_id));
 }catch(e){fail(res,e)}});
 
