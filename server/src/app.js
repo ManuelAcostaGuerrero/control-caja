@@ -234,7 +234,7 @@ app.get('/api/movements',(req,res)=>{try{
 }catch(e){fail(res,e)}});
 app.get('/api/movements/:id',(req,res)=>{try{
   const m=getMovement(Number(req.params.id));if(!m)return fail(res,new Error('Movimiento no encontrado.'),404);
-  ensureCompany(req.user,m.company_id);ok(res,m);
+  ensureCompany(req.user,m.company_id);ensureMovementView(req.user,m);ok(res,m);
 }catch(e){fail(res,e)}});
 app.put('/api/movements/:id/classification',systemAdmin,(req,res)=>{try{
   const id=Number(req.params.id),m=getMovement(id);if(!m)throw new Error('Movimiento no encontrado.');
