@@ -1,4 +1,17 @@
+import crypto from 'node:crypto';
 import { db, transaction } from './db.js';
+
+function hasColumn(table,column){
+  return db.prepare(`PRAGMA table_info(${table})`).all().some(x=>x.name===column);
+}
+function addColumn(table,definition){
+  const name=definition.trim().split(/\s+/)[0];
+  if(!hasColumn(table,name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
+}
+function password(password){
+  const salt=crypto.randomBytes(16).toString('hex');
+  return {salt,hash:crypto.scryptSync(password,salt,64).toString('hex')};
+}
 
 export function runMigrations(){
   db.exec(`
@@ -30,6 +43,33 @@ export function runMigrations(){
       active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(expense_type_id,name)
+    );
+    CREATE TABLE IF NOT EXISTS suppliers(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL REFERENCES companies(id),
+      name TEXT NOT NULL COLLATE NOCASE,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(company_id,name)
+    );
+    CREATE TABLE IF NOT EXISTS users(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      full_name TEXT NOT NULL,
+      password_salt TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'USER' CHECK(role IN ('SYSTEM_ADMIN','LOCAL_ADMIN','USER')),
+      active INTEGER NOT NULL DEFAULT 1,
+      default_location_id INTEGER REFERENCES locations(id),
+      require_location_choice INTEGER NOT NULL DEFAULT 0,
+      can_withdraw INTEGER NOT NULL DEFAULT 1,
+      can_deposit INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS user_locations(
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      location_id INTEGER NOT NULL REFERENCES locations(id),
+      PRIMARY KEY(user_id,location_id)
     );
     CREATE TABLE IF NOT EXISTS movements(
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,21 +108,41 @@ export function runMigrations(){
     CREATE INDEX IF NOT EXISTS idx_settlements_movement ON settlements(movement_id);
     CREATE INDEX IF NOT EXISTS idx_returns_movement ON returns(movement_id);
   `);
-  const count = db.prepare('SELECT COUNT(*) AS n FROM companies').get().n;
-  if (!count) {
-    const tx = () => transaction(() => {
-      const company = db.prepare('INSERT INTO companies(name) VALUES (?)').run('Redtaurus').lastInsertRowid;
-      for (const name of ['GASTROBAR','BOTILLERÍA','BODEGA','ADMINISTRACIÓN']) db.prepare('INSERT INTO locations(company_id,name) VALUES (?,?)').run(company,name);
-      const types = ['PAGO DE FACTURA','COMPRA DE MERCADERÍA','GASTO EMPRESARIAL','CONSUMO','MANTENCIÓN','SERVICIOS','TRANSPORTE','OTRO'];
-      const ids = new Map();
-      for (const name of types) ids.set(name, db.prepare('INSERT INTO expense_types(name) VALUES (?)').run(name).lastInsertRowid);
-      const cats = [
+
+  addColumn('movements','created_by_user_id INTEGER REFERENCES users(id)');
+  addColumn('movements','supplier_id INTEGER REFERENCES suppliers(id)');
+  addColumn('movements','invoice_mode TEXT');
+  addColumn('movements','document_number_hint TEXT');
+  addColumn('movements','expense_type_id INTEGER REFERENCES expense_types(id)');
+  addColumn('movements','category_id INTEGER REFERENCES categories(id)');
+  addColumn('settlements','supplier_id INTEGER REFERENCES suppliers(id)');
+
+  const companyCount=db.prepare('SELECT COUNT(*) AS n FROM companies').get().n;
+  if(!companyCount){
+    transaction(()=>{
+      const company=db.prepare('INSERT INTO companies(name) VALUES (?)').run('Redtaurus').lastInsertRowid;
+      for(const name of ['DISTRIBUIDORA','GASTROBAR','BOTILLERÍA','BODEGA','ADMINISTRACIÓN']) db.prepare('INSERT INTO locations(company_id,name) VALUES (?,?)').run(company,name);
+      const types=['PAGO DE FACTURA','COMPRA DE MERCADERÍA','GASTO EMPRESARIAL','CONSUMO','MANTENCIÓN','SERVICIOS','TRANSPORTE','OTRO'];
+      const ids=new Map();
+      for(const name of types) ids.set(name,db.prepare('INSERT INTO expense_types(name) VALUES (?)').run(name).lastInsertRowid);
+      const cats=[
         ['CONSUMO','BENCINA'],['COMPRA DE MERCADERÍA','ALIMENTOS'],['COMPRA DE MERCADERÍA','BEBIDAS'],
         ['COMPRA DE MERCADERÍA','INSUMOS DE COCINA'],['GASTO EMPRESARIAL','ASEO'],['MANTENCIÓN','REPARACIONES'],
         ['SERVICIOS','SERVICIOS BÁSICOS'],['TRANSPORTE','TRASLADOS']
       ];
-      for (const [type,name] of cats) db.prepare('INSERT INTO categories(expense_type_id,name) VALUES (?,?)').run(ids.get(type),name);
+      for(const [type,name] of cats) db.prepare('INSERT INTO categories(expense_type_id,name) VALUES (?,?)').run(ids.get(type),name);
     });
-    tx();
+  } else {
+    const company=db.prepare('SELECT id FROM companies ORDER BY id LIMIT 1').get();
+    if(company && !db.prepare("SELECT 1 FROM locations WHERE company_id=? AND name='DISTRIBUIDORA' COLLATE NOCASE").get(company.id)){
+      db.prepare('INSERT INTO locations(company_id,name) VALUES (?,?)').run(company.id,'DISTRIBUIDORA');
+    }
+  }
+
+  const userCount=db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
+  if(!userCount){
+    const p=password('admin');
+    db.prepare(`INSERT INTO users(username,full_name,password_salt,password_hash,role,can_withdraw,can_deposit,require_location_choice)
+      VALUES ('admin','Administrador del sistema',?,?,'SYSTEM_ADMIN',1,1,1)`).run(p.salt,p.hash);
   }
 }
