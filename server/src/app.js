@@ -192,6 +192,64 @@ app.put('/api/admin/users/:id',systemAdmin,(req,res)=>{try{
   ok(res,userRow(id));
 }catch(e){fail(res,e)}});
 
+app.get('/api/pending-returns',(req,res)=>{try{
+  const companyId=Number(req.query.companyId);ensureCompany(req.user,companyId);
+  let candidates;
+  if(req.user.role==='SYSTEM_ADMIN'){
+    candidates=db.prepare("SELECT id FROM movements WHERE company_id=? AND kind='WITHDRAWAL' AND purpose!='DIRECT_EXPENSE' ORDER BY id DESC").all(companyId);
+  }else{
+    const visible=visibleLocationIds(req.user);
+    if(visible.length){
+      const marks=visible.map(()=>'?').join(',');
+      candidates=db.prepare(`SELECT id FROM movements WHERE company_id=? AND kind='WITHDRAWAL' AND purpose!='DIRECT_EXPENSE' AND (location_id IN (${marks}) OR created_by_user_id=?) ORDER BY id DESC`).all(companyId,...visible,req.user.id);
+    }else{
+      candidates=db.prepare("SELECT id FROM movements WHERE company_id=? AND kind='WITHDRAWAL' AND purpose!='DIRECT_EXPENSE' AND created_by_user_id=? ORDER BY id DESC").all(companyId,req.user.id);
+    }
+  }
+  ok(res,candidates.map(x=>getMovement(x.id)).filter(x=>x&&x.pending_amount>0).map(x=>({
+    id:x.id,locationId:x.location_id,locationName:x.location_name,amount:x.amount,pendingAmount:x.pending_amount,
+    createdAt:x.created_at,invoiceNumber:x.document_number_hint||'',supplierName:x.supplier_name||''
+  })));
+}catch(e){fail(res,e)}});
+
+const incomeSchema=z.object({
+  companyId:z.coerce.number().int().positive(),
+  locationId:z.coerce.number().int().positive().nullable().optional(),
+  amount:z.coerce.number().int().positive(),
+  incomeType:z.enum(['BOX','RETURN','OTHER']),
+  relatedMovementId:z.coerce.number().int().positive().nullable().optional(),
+  boxFromDate:z.string().trim().max(10).optional().default(''),
+  boxToDate:z.string().trim().max(10).optional().default(''),
+  comment:z.string().trim().max(500).optional().default('')
+});
+app.post('/api/incomes',(req,res)=>{try{
+  if(!req.user.can_deposit)throw new Error('Este usuario no tiene permiso para ingresar dinero.');
+  const x=incomeSchema.parse(req.body);ensureCompany(req.user,x.companyId);
+  let locationId=x.locationId,detail=x.comment,related=null;
+  if(x.incomeType==='RETURN'){
+    if(!x.relatedMovementId)throw new Error('Selecciona de qué movimiento corresponde el vuelto.');
+    related=getMovement(x.relatedMovementId);
+    if(!related||related.kind!=='WITHDRAWAL'||Number(related.company_id)!==x.companyId)throw new Error('El movimiento de origen no es válido.');
+    const allowed=req.user.role==='SYSTEM_ADMIN'||canUseLocation(req.user,related.location_id)||Number(related.created_by_user_id)===Number(req.user.id);
+    if(!allowed)throw new Error('No puedes registrar un vuelto para ese movimiento.');
+    if(related.pending_amount<=0)throw new Error('Ese movimiento ya no tiene diferencia pendiente.');
+    if(x.amount>related.pending_amount)throw new Error('El vuelto supera la diferencia pendiente.');
+    locationId=related.location_id;
+    detail=detail||('Vuelto de movimiento #'+related.id);
+  }else{
+    if(!locationId)throw new Error('Selecciona un local.');
+    if(!canRegisterLocation(req.user,locationId))throw new Error('Este usuario no puede registrar ingresos en ese local.');
+    const location=db.prepare('SELECT company_id FROM locations WHERE id=? AND active=1').get(locationId);
+    if(!location||Number(location.company_id)!==x.companyId)throw new Error('Selecciona un local válido.');
+    if(x.incomeType==='BOX')detail=detail||'Caja';
+    if(x.incomeType==='OTHER'&&!detail)throw new Error('Escribe el motivo del ingreso.');
+  }
+  if(x.incomeType==='BOX'&&x.boxFromDate&&x.boxToDate&&x.boxFromDate>x.boxToDate)throw new Error('La fecha desde no puede ser posterior a la fecha hasta.');
+  const result=db.prepare(`INSERT INTO movements(company_id,location_id,kind,purpose,amount,planned_detail,created_by,created_by_user_id,income_type,related_movement_id,box_from_date,box_to_date)
+    VALUES (?,?,'INCOME','OTHER',?,?,?,?,?,?,?,?)`).run(x.companyId,locationId,x.amount,detail,req.user.full_name,req.user.id,x.incomeType,related?.id||null,x.boxFromDate||null,x.boxToDate||null);
+  ok(res,getMovement(Number(result.lastInsertRowid)));
+}catch(e){fail(res,e)}});
+
 const movementSchema=z.object({
   companyId:z.coerce.number().int().positive(),locationId:z.coerce.number().int().positive(),
   kind:z.enum(['INCOME','WITHDRAWAL']),purpose:z.enum(['INVOICE_PAYMENT','DIRECT_EXPENSE','OTHER']).default('OTHER'),
