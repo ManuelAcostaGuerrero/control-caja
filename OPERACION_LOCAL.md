@@ -36,3 +36,19 @@ El respaldo SQLite se realiza con `VACUUM INTO` y luego se valida con `PRAGMA in
 Un retiro representa dinero físico que sale de la caja fuerte. Después puede recibir una o varias rendiciones (facturas, boletas u otros documentos) y uno o varios registros de vuelto. El sistema compara el dinero entregado contra documentos + vuelto para determinar si el retiro está completo o pendiente.
 
 No se eliminan movimientos financieros desde la interfaz. Los catálogos administrativos se desactivan para conservar referencias históricas.
+
+
+## Usuarios y acceso — 0.2.0
+
+La primera migración 0.2.0 crea un administrador del sistema si todavía no existe ningún usuario:
+
+- usuario: `admin`
+- clave: `admin`
+
+Este acceso es temporal para pruebas. El administrador del sistema crea usuarios y administradores locales desde Configuración > Usuarios. Cada usuario puede tener varios locales permitidos, un local por defecto o la obligación de elegirlo en cada movimiento.
+
+Los movimientos nuevos guardan el usuario de sesión automáticamente. El campo Responsable ya no se solicita manualmente.
+
+## Limpieza antes de producción
+
+Configuración > Pruebas permite borrar todos los movimientos, documentos y vueltos de prueba. Exige escribir exactamente `LIMPIAR PRUEBAS`. No borra usuarios, locales, proveedores, categorías ni tipos de gasto.
