@@ -52,3 +52,11 @@ Los movimientos nuevos guardan el usuario de sesión automáticamente. El campo 
 ## Limpieza antes de producción
 
 Configuración > Pruebas permite borrar todos los movimientos, documentos y vueltos de prueba. Exige escribir exactamente `LIMPIAR PRUEBAS`. No borra usuarios, locales, proveedores, categorías ni tipos de gasto.
+
+## Cambios 0.4.0
+
+- Los campos monetarios muestran separadores de miles mientras se escriben.
+- Ingreso rápido: Caja, Vuelto u Otro.
+- Caja admite fechas opcionales desde/hasta.
+- Los vueltos se registran como ingresos vinculados al movimiento original y pueden ser parciales.
+- Los administradores locales solo consultan movimientos de sus locales asignados, aunque pueden registrar una operación puntual en otro local de la misma empresa.
