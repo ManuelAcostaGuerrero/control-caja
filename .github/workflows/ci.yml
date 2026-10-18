@@ -1,0 +1,23 @@
+name: Validar Control Caja
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Instalar dependencias
+        run: npm install
+      - name: Validar estructura
+        run: node tools/validate-update.mjs
+      - name: Pruebas
+        run: npm test
+      - name: Compilar pantalla
+        run: npm run build
