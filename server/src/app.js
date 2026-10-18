@@ -230,7 +230,7 @@ app.post('/api/movements',(req,res)=>{try{
 }catch(e){fail(res,e)}});
 
 app.get('/api/movements',(req,res)=>{try{
-  const companyId=Number(req.query.companyId);ensureCompany(req.user,companyId);ok(res,listMovements(companyId,Number(req.query.limit||100)));
+  const companyId=Number(req.query.companyId);ensureCompany(req.user,companyId);ok(res,listMovements(companyId,Number(req.query.limit||100),visibleLocationIds(req.user)));
 }catch(e){fail(res,e)}});
 app.get('/api/movements/:id',(req,res)=>{try{
   const m=getMovement(Number(req.params.id));if(!m)return fail(res,new Error('Movimiento no encontrado.'),404);
