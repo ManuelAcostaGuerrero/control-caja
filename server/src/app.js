@@ -324,7 +324,8 @@ app.post('/api/movements/:id/returns',(req,res)=>{try{
   ensureCompany(req.user,m.company_id);ensureMovementView(req.user,m);
   const x=z.object({amount:z.coerce.number().int().positive(),note:z.string().trim().max(300).optional().default('')}).parse(req.body);
   if(x.amount>m.pending_amount)throw new Error('El vuelto supera el monto pendiente.');
-  db.prepare('INSERT INTO returns(movement_id,amount,note) VALUES (?,?,?)').run(id,x.amount,x.note||'Vuelto recibido');
+  db.prepare(`INSERT INTO movements(company_id,location_id,kind,purpose,amount,planned_detail,created_by,created_by_user_id,income_type,related_movement_id)
+    VALUES (?,?,'INCOME','OTHER',?,?,?,?, 'RETURN',?)`).run(m.company_id,m.location_id,x.amount,x.note||('Vuelto de movimiento #'+id),req.user.full_name,req.user.id,id);
   ok(res,getMovement(id));
 }catch(e){fail(res,e)}});
 app.put('/api/settlements/:id',(req,res)=>{try{
