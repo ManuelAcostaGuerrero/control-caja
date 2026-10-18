@@ -127,7 +127,12 @@ export function runMigrations(){
   addColumn('movements','document_number_hint TEXT');
   addColumn('movements','expense_type_id INTEGER REFERENCES expense_types(id)');
   addColumn('movements','category_id INTEGER REFERENCES categories(id)');
+  addColumn('movements',"income_type TEXT CHECK(income_type IS NULL OR income_type IN ('BOX','RETURN','OTHER'))");
+  addColumn('movements','related_movement_id INTEGER REFERENCES movements(id)');
+  addColumn('movements','box_from_date TEXT');
+  addColumn('movements','box_to_date TEXT');
   addColumn('settlements','supplier_id INTEGER REFERENCES suppliers(id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_movements_related ON movements(related_movement_id);');
 
   const companyCount=db.prepare('SELECT COUNT(*) AS n FROM companies').get().n;
   if(!companyCount){
