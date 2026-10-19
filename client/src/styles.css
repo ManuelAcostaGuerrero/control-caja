@@ -51,3 +51,4 @@
 .return-options small{color:#6b7280}
 .selected-return{background:#ecfdf5;border:1px solid #bbf7d0;border-radius:10px;padding:10px;font-size:13px}
 @media(max-width:760px){.date-range,.return-options{grid-template-columns:1fr}}
+.movement-date{display:block;color:#6b7280;font-size:12px;line-height:1.35;margin-bottom:4px;font-weight:500}
